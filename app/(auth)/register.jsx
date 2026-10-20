@@ -14,8 +14,12 @@ import {
   Alert,
 } from "react-native";
 import { Link } from "expo-router";
+import { supabase } from "../../lib/supabase";
 
 export default function Register() {
+
+  const [emaiil, setEmail] = useState("")
+  const [password, setPassword] = useState("")
 
   return (
     <SafeAreaView style={styles.screen}>
