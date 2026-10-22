@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   View,
@@ -15,11 +14,61 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Register() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [emaiil, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  function handleRegister() {
+    // if (!email.trim() || !password || !confirmPassword) {
+    //   Alert.alert("Missing details", "Please complete all fields.");
+    //   return;
+    // }
+
+    if (!email.trim().includes("@")) {
+      Alert.alert("Invalid email", "Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert(
+        "Password too short",
+        "Your password must contain at least 6 characters.",
+      );
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Passwords don't match", "Please check your passwords.");
+      return;
+    }
+    signUpWithEmail();
+  }
+  async function signUpWithEmail() {
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.signUp({
+        email: emaii,
+        password: password,
+      });
+      if (error) Alert.alert(error.message);
+      if (!session) {
+        Alert.alert("Please check your inbox for email verification!");
+        return;
+      }
+      Alert.alert("Success", "Your account has been created successfully.");
+    } catch (error) {
+      Alert.alert(
+        "Connection error",
+        "Unable to register right now. Check your internet connection and try again.",
+      );
+    }
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -53,17 +102,28 @@ export default function Register() {
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
             />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Create a password"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoComplete="new-password"
+                value={password}
+                onChangeText={setPassword}
+              />
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Create a password"
-              placeholderTextColor="#9CA3AF"
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="new-password"
-            />
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
 
             <Text style={styles.label}>Confirm password</Text>
             <TextInput
@@ -80,6 +140,7 @@ export default function Register() {
                 styles.button,
                 pressed && styles.buttonPressed,
               ]}
+              onPress={handleRegister}
             >
               <Text style={styles.buttonText}>Create Account</Text>
               <Text style={styles.buttonArrow}>→</Text>
@@ -208,5 +269,20 @@ const styles = StyleSheet.create({
   backText: {
     color: "#6B7280",
     fontSize: 14,
+  },
+
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
   },
 });
