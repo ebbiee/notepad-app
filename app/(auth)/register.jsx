@@ -124,16 +124,26 @@ export default function Register() {
                 />
               </Pressable>
             </View>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm password"
+                secureTextEntry={!confirmPassword}
+                autoCapitalize="none"
+                autoComplete="new-password"
+                value={password}
+                onChangeText={setPassword}
+              />
 
-            <Text style={styles.label}>Confirm password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password again"
-              placeholderTextColor="#9CA3AF"
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="new-password"
-            />
+              <Pressable onPress={() => setShowConfirmPassword(!confirmPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+
 
             <Pressable
               style={({ pressed }) => [
