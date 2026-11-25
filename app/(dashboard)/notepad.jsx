@@ -8,14 +8,10 @@ import {
   StatusBar,
   Image,
   Pressable,
-  Modal,
-  TextInput,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 
 function formatDate(iso) {
@@ -27,17 +23,9 @@ function formatDate(iso) {
 }
 
 export default function Notepad() {
-  const [userId, setUserId] = useState(null);
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null); // null means a new note
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [pinned, setPinned] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const loadNotes = useCallback(async () => {
     const { data, error } = await supabase
@@ -54,10 +42,11 @@ export default function Notepad() {
     setLoading(false);
   }, []);
 
+  // Check the user is logged in
   useEffect(() => {
     let active = true;
 
-    async function init() {
+    async function checkSession() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -68,95 +57,29 @@ export default function Notepad() {
         router.replace("/login");
         return;
       }
-
-      setUserId(session.user.id);
       setEmail(session.user.email ?? "");
-      await loadNotes();
     }
 
-    init();
+    checkSession();
     return () => {
       active = false;
     };
-  }, [loadNotes]);
+  }, []);
+
+  // Reload notes every time this screen comes into focus,
+  // so changes made on the note page show up when you come back
+  useFocusEffect(
+    useCallback(() => {
+      loadNotes();
+    }, [loadNotes]),
+  );
 
   function openNewNote() {
-    setEditingId(null);
-    setTitle("");
-    setContent("");
-    setPinned(false);
-    setEditorOpen(true);
+    router.push("/note");
   }
 
   function openNote(note) {
-    setEditingId(note.id);
-    setTitle(note.title);
-    setContent(note.content);
-    setPinned(note.pinned);
-    setEditorOpen(true);
-  }
-
-  async function saveNote() {
-    const cleanTitle = title.trim();
-    const cleanContent = content.trim();
-
-    if (!cleanTitle && !cleanContent) {
-      Alert.alert("Empty note", "Write a title or some text before saving.");
-      return;
-    }
-
-    setSaving(true);
-    const now = new Date().toISOString();
-
-    const result = editingId
-      ? await supabase
-          .from("notes")
-          .update({
-            title: cleanTitle,
-            content: cleanContent,
-            pinned,
-            updated_at: now,
-          })
-          .eq("id", editingId)
-      : await supabase.from("notes").insert({
-          user_id: userId,
-          title: cleanTitle,
-          content: cleanContent,
-          pinned,
-        });
-
-    setSaving(false);
-
-    if (result.error) {
-      Alert.alert("Could not save", result.error.message);
-      return;
-    }
-
-    setEditorOpen(false);
-    loadNotes();
-  }
-
-  function confirmDelete() {
-    Alert.alert("Delete note", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase
-            .from("notes")
-            .delete()
-            .eq("id", editingId);
-
-          if (error) {
-            Alert.alert("Could not delete", error.message);
-            return;
-          }
-          setEditorOpen(false);
-          loadNotes();
-        },
-      },
-    ]);
+    router.push({ pathname: "/note", params: { id: note.id } });
   }
 
   async function signOut() {
@@ -276,76 +199,6 @@ export default function Notepad() {
           <Text style={styles.navLabel}>Profile</Text>
         </View>
       </View>
-
-      {/* New / edit note editor */}
-      <Modal
-        visible={editorOpen}
-        animationType="slide"
-        onRequestClose={() => setEditorOpen(false)}
-      >
-        <SafeAreaView style={styles.screen}>
-          <KeyboardAvoidingView
-            style={styles.screen}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
-            <View style={styles.editorHeader}>
-              <Pressable onPress={() => setEditorOpen(false)}>
-                <Text style={styles.editorCancel}>Cancel</Text>
-              </Pressable>
-
-              <Text style={styles.editorHeaderTitle}>
-                {editingId ? "Edit note" : "New note"}
-              </Text>
-
-              <Pressable onPress={saveNote} disabled={saving}>
-                {saving ? (
-                  <ActivityIndicator color="#293DAA" />
-                ) : (
-                  <Text style={styles.editorSave}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.editorBody}
-              keyboardShouldPersistTaps="handled"
-            >
-              <TextInput
-                style={styles.titleInput}
-                placeholder="Title"
-                placeholderTextColor="#9CA3AF"
-                value={title}
-                onChangeText={setTitle}
-              />
-
-              <TextInput
-                style={styles.contentInput}
-                placeholder="Start writing..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                textAlignVertical="top"
-                value={content}
-                onChangeText={setContent}
-              />
-
-              <Pressable
-                style={styles.pinToggle}
-                onPress={() => setPinned(!pinned)}
-              >
-                <Text style={styles.pinToggleText}>
-                  {pinned ? "Pinned ✓" : "Pin this note"}
-                </Text>
-              </Pressable>
-
-              {editingId && (
-                <Pressable style={styles.deleteButton} onPress={confirmDelete}>
-                  <Text style={styles.deleteText}>Delete note</Text>
-                </Pressable>
-              )}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -521,72 +374,5 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 29,
     elevation: 5,
-  },
-  editorHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E9EBF2",
-    backgroundColor: "#FFFFFF",
-  },
-  editorCancel: {
-    fontSize: 16,
-    color: "#69758F",
-  },
-  editorHeaderTitle: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#171B2D",
-  },
-  editorSave: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#293DAA",
-  },
-  editorBody: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  titleInput: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#171B2D",
-    paddingVertical: 8,
-    marginBottom: 12,
-  },
-  contentInput: {
-    fontSize: 16,
-    color: "#171B2D",
-    lineHeight: 24,
-    minHeight: 260,
-    paddingVertical: 8,
-  },
-  pinToggle: {
-    marginTop: 20,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E7EAF2",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-  },
-  pinToggleText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#293DAA",
-  },
-  deleteButton: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  deleteText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#DC2626",
   },
 });
