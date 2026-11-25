@@ -12,9 +12,10 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -22,12 +23,13 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   function handleRegister() {
-    // if (!email.trim() || !password || !confirmPassword) {
-    //   Alert.alert("Missing details", "Please complete all fields.");
-    //   return;
-    // }
+    if (!email.trim() || !password || !confirmPassword) {
+      Alert.alert("Missing details", "Please complete all fields.");
+      return;
+    }
 
     if (!email.trim().includes("@")) {
       Alert.alert("Invalid email", "Please enter a valid email address.");
@@ -41,32 +43,50 @@ export default function Register() {
       );
       return;
     }
+
     if (password !== confirmPassword) {
       Alert.alert("Passwords don't match", "Please check your passwords.");
       return;
     }
+
     signUpWithEmail();
   }
+
   async function signUpWithEmail() {
+    const redirectTo = Linking.createURL("/auth/callback");
+    setLoading(true);
+
     try {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.signUp({
-        email: emaii,
-        password: password,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: redirectTo },
       });
-      if (error) Alert.alert(error.message);
-      if (!session) {
-        Alert.alert("Please check your inbox for email verification!");
+
+      if (error) {
+        Alert.alert("Registration failed", error.message);
         return;
       }
-      Alert.alert("Success", "Your account has been created successfully.");
-    } catch (error) {
+
+      if (data.session) {
+        // Email confirmation is off, so the user is already logged in
+        router.replace("/notepad");
+      } else {
+        // Email confirmation is on
+        Alert.alert(
+          "Check your email",
+          "We sent you a confirmation link. Confirm your email, then log in.",
+          [{ text: "OK", onPress: () => router.replace("/login") }],
+        );
+      }
+    } catch (err) {
+      console.log("Register error:", err);
       Alert.alert(
-        "Connection error",
-        "Unable to register right now. Check your internet connection and try again.",
+        "Something went wrong",
+        err?.message ?? "Unable to register right now. Please try again.",
       );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -105,17 +125,18 @@ export default function Register() {
               value={email}
               onChangeText={setEmail}
             />
+
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Create a password"
+                placeholderTextColor="#9CA3AF"
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoComplete="new-password"
                 value={password}
                 onChangeText={setPassword}
               />
-
               <Pressable onPress={() => setShowPassword(!showPassword)}>
                 <Ionicons
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
@@ -124,36 +145,40 @@ export default function Register() {
                 />
               </Pressable>
             </View>
+
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Confirm password"
-                secureTextEntry={!confirmPassword}
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 autoComplete="new-password"
-                value={password}
-                onChangeText={setPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
               />
-
-              <Pressable onPress={() => setShowConfirmPassword(!confirmPassword)}>
+              <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                 <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
                   size={22}
                   color="#6B7280"
                 />
               </Pressable>
             </View>
 
-
             <Pressable
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
+                loading && styles.buttonDisabled,
               ]}
               onPress={handleRegister}
+              disabled={loading}
             >
-              <Text style={styles.buttonText}>Create Account</Text>
-              <Text style={styles.buttonArrow}>→</Text>
+              <Text style={styles.buttonText}>
+                {loading ? "Creating account..." : "Create Account"}
+              </Text>
+              {!loading && <Text style={styles.buttonArrow}>→</Text>}
             </Pressable>
           </View>
 
@@ -232,6 +257,19 @@ const styles = StyleSheet.create({
     color: "#111827",
     backgroundColor: "#FFFFFF",
   },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+  },
   button: {
     height: 54,
     backgroundColor: "#2563EB",
@@ -246,6 +284,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#1D4ED8",
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: "#FFFFFF",
@@ -279,20 +320,5 @@ const styles = StyleSheet.create({
   backText: {
     color: "#6B7280",
     fontSize: 14,
-  },
-
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 16,
   },
 });

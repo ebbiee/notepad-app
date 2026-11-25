@@ -1,4 +1,4 @@
-
+import { useState } from "react";
 import {
   View,
   Text,
@@ -11,14 +11,52 @@ import {
   Platform,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { supabase } from "../../lib/supabase";
 
 export default function Login() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    if (!email.trim() || !password) {
+      Alert.alert("Missing details", "Please enter your email and password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        Alert.alert("Login failed", error.message);
+        return;
+      }
+
+      router.replace("/notepad");
+    } catch (error) {
+      console.log(error);
+      Alert.alert(
+        "Connection error",
+        "Unable to log in right now. Check your internet connection and try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
       <KeyboardAvoidingView
         style={styles.screen}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -33,9 +71,7 @@ export default function Login() {
           </View>
 
           <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>
-            Log in to access your notes.
-          </Text>
+          <Text style={styles.subtitle}>Log in to access your notes.</Text>
 
           <View style={styles.form}>
             <Text style={styles.label}>Email address</Text>
@@ -47,26 +83,48 @@ export default function Login() {
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
             />
 
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#9CA3AF"
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="current-password"
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoComplete="current-password"
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
 
             <Pressable
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
+                loading && { opacity: 0.7 },
               ]}
+              onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={styles.buttonText}>Log In</Text>
-              <Text style={styles.buttonArrow}>→</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>Log In</Text>
+                  <Text style={styles.buttonArrow}>→</Text>
+                </>
+              )}
             </Pressable>
           </View>
 
@@ -144,6 +202,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#111827",
     backgroundColor: "#FFFFFF",
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    height: 52,
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
   },
   button: {
     height: 54,
